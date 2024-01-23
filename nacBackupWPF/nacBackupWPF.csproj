@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net6.0-windows</TargetFramework>
+        <UseWPF>true</UseWPF>
+        <ApplicationIcon>backup.ico</ApplicationIcon>
+    </PropertyGroup>
+    <ItemGroup>
+      <PackageReference Include="DotNetZip" Version="1.16.0" />
+      <PackageReference Include="Ecark.Extensions" Version="2.0.2" />
+      <PackageReference Include="NacWPFControls" Version="2.0.0" />
+      <PackageReference Include="WpfBusyIndicator" Version="2.0.0" />
+    </ItemGroup>
+
+
+</Project>
