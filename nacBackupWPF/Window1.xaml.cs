@@ -22,10 +22,6 @@ using Ionic.BZip2;
 using Ionic.Zip;
 using System.Windows.Markup;
 
-using Ecark.Extensions;
-
-using NCWPFExtensions;
-
 namespace nacBackupWPF
 {
 

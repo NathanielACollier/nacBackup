@@ -2,9 +2,9 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
-    xmlns:NacWPFControls="clr-namespace:NacWPFControls;assembly=NacWPFControls"
+    xmlns:NacWPFControls="clr-namespace:nac.wpf.Controls;assembly=nac.wpf.Controls"
     xmlns:local="clr-namespace:nacBackupWPF"
-      xmlns:BusyIndicator="clr-namespace:WpfBusyIndicator;assembly=WpfBusyIndicator"
+    xmlns:BusyIndicator="clr-namespace:nac.wpf.controls.BusyControl;assembly=nac.wpf.controls.BusyControl"
         Closing="Window_Closing"
     Title="Nathaniel Collier Backup Utility" Height="775" Width="1010">
 
