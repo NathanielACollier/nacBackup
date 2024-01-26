@@ -78,7 +78,8 @@ namespace nacBackupWPF
             {
                 if (UnCompressedBytesCounter > 0)
                 {
-                    return "{0:N2}%".With(((double)CompressedBytesCounter / (double)UnCompressedBytesCounter) * 100);
+                    double ratio = ((double)CompressedBytesCounter / (double)UnCompressedBytesCounter) * 100;
+                    return $"{ratio:N2}%";
                 }
 
                 return "0%";

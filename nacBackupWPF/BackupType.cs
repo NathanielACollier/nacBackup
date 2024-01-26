@@ -24,7 +24,9 @@ namespace nacBackupWPF
                 string newFormat = value;
 
                 // if the format doesn't work, change it back to the default one
-                if (string.IsNullOrEmpty(newFormat) || DateTime.Now.ToString(newFormat).IsDateTime() == false)
+                if (string.IsNullOrEmpty(newFormat) ||
+                    !DateTime.TryParse(s: DateTime.Now.ToString(newFormat), out DateTime parseResult)
+                    )
                 {
                     newFormat = DefaultTimeStampFormat;
                 }

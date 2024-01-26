@@ -21,6 +21,7 @@ using System.IO;
 using Ionic.BZip2;
 using Ionic.Zip;
 using System.Windows.Markup;
+using nac.wpf.Extensions;
 
 namespace nacBackupWPF
 {
@@ -202,9 +203,7 @@ namespace nacBackupWPF
                         zip.CompressionMethod = CompressionMethod.BZip2;
 
 
-                        string zipFileName = @"{0}\{1}_{2}.zip".With(model.SelectedBackup.DestinationPath,
-                                                                        model.SelectedBackup.Name,
-                                                                        model.SelectedBackup.TimeStampValue);
+                        string zipFileName = $@"{model.SelectedBackup.DestinationPath}\{model.SelectedBackup.Name}_{model.SelectedBackup.TimeStampValue}.zip";
 
                         LogTextBox.Document.AddParagraphs(new Paragraph(new Run
                         {
@@ -271,7 +270,7 @@ namespace nacBackupWPF
 
                     if (!Directory.Exists(model.SelectedBackup.DestinationPath))
                     {
-                        errorMessage += "Directory {0} does not exist".With(model.SelectedBackup.DestinationPath);
+                        errorMessage += $"Directory {model.SelectedBackup.DestinationPath} does not exist";
                     }
 
                     if (model.SelectedBackup.BackupLocations.Count < 1)
@@ -281,7 +280,7 @@ namespace nacBackupWPF
 
                     if (model.SelectedBackup.Name == null || model.SelectedBackup.DestinationPath == null)
                     {
-                        errorMessage += "Something is wrong with the backup name({0}) or the destination path({1})".With(model.SelectedBackup.Name, model.SelectedBackup.DestinationPath);
+                        errorMessage += $"Something is wrong with the backup name({model.SelectedBackup.Name}) or the destination path({model.SelectedBackup.DestinationPath})";
                     }
 
                     LogTextBox.Document.AddParagraphs(new Paragraph(new Run
@@ -357,7 +356,7 @@ namespace nacBackupWPF
                             FontFamily = new FontFamily("Arial"),
                             FontSize = 10F,
                             Foreground = Brushes.Blue,
-                            Text = "{0}".With( e.CurrentEntry.FileName )
+                            Text = e.CurrentEntry.FileName
                         }));
 
                         // incriment the Directory count
@@ -375,7 +374,7 @@ namespace nacBackupWPF
                         LogTextBox.Document.AddParagraphs(new Paragraph(
                             new Run
                             {
-                                Text = "\t\t{0}".With( e.CurrentEntry.FileName )
+                                Text = $"\t\t{e.CurrentEntry.FileName}"
                             }));
 
                         // incriment the file count
@@ -684,7 +683,7 @@ namespace nacBackupWPF
             {
                 // get the file path to load
                 var fileDialog = new System.Windows.Forms.OpenFileDialog();
-                var fileDialogResult = fileDialog.ShowDialog(NacWPFControls.MyWpfExtensions.GetIWin32Window(this));
+                var fileDialogResult = fileDialog.ShowDialog(owner: Win32Extensions.GetIWin32Window(this));
 
                 if (fileDialogResult == System.Windows.Forms.DialogResult.OK)
                 {
@@ -711,8 +710,7 @@ namespace nacBackupWPF
                 LogTextBox.Document.AddParagraphs(new Paragraph(new Run
                 {
                     Foreground = Brushes.Red,
-                    Text = "Problem occured while attemping to load backups from config file: {0}, Exception: {1}".With(model.BackupSetPath,
-                                                                                                                         ex.Message)
+                    Text = $"Problem occured while attemping to load backups from config file: {model.BackupSetPath}, Exception: {ex.Message}"
                 }));
 
                 HideBusy();
@@ -778,7 +776,7 @@ namespace nacBackupWPF
                 LogTextBox.Document.AddParagraphs(new Paragraph(new Run
                 {
                     Foreground = Brushes.Blue,
-                    Text = "All backups have been saved to the config file: {0}.".With(path)
+                    Text = $"All backups have been saved to the config file: {path}."
                 }));
 
             }
@@ -787,7 +785,7 @@ namespace nacBackupWPF
                 LogTextBox.Document.AddParagraphs(new Paragraph(new Run
                 {
                     Foreground = Brushes.Red,
-                    Text = "Unable to save backups to config file: {0}.  Exception: {1}".With(path, ex.ToString())
+                    Text = $"Unable to save backups to config file: {path}.  Exception: {ex}"
                 }));
             }
         }
@@ -800,7 +798,7 @@ namespace nacBackupWPF
             // if backup set path is not null ask the user if they want to overwrite the current backup set
             if (!string.IsNullOrEmpty(model.BackupSetPath))
             {
-                var result = System.Windows.MessageBox.Show("By clicking ok you will overwrite the current backup location {0}.  If this is not what you want click cancel and you will be able to pick a new location to save the backup set to.".With(model.BackupSetPath), "Overwriting backup set config file", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+                var result = System.Windows.MessageBox.Show($"By clicking ok you will overwrite the current backup location {model.BackupSetPath}.  If this is not what you want click cancel and you will be able to pick a new location to save the backup set to.", "Overwriting backup set config file", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
                 if (result == MessageBoxResult.OK)
                 {
                     // use the backup set path to save the backups to
@@ -813,7 +811,7 @@ namespace nacBackupWPF
             //http://www.java2s.com/Tutorial/VB/0260__GUI/SetOpenFileDialogFilterandgetselectedfilename.htm
             var fileDialog = new System.Windows.Forms.SaveFileDialog();
             fileDialog.Filter = "XML (*.xml) |*.xml";
-            var fileDialogResult = fileDialog.ShowDialog(NacWPFControls.MyWpfExtensions.GetIWin32Window(this));
+            var fileDialogResult = fileDialog.ShowDialog(owner: Win32Extensions.GetIWin32Window(this));
             if (fileDialogResult == System.Windows.Forms.DialogResult.OK)
             {
                 model.BackupSetPath = fileDialog.FileName;
