@@ -33,7 +33,8 @@ namespace nacBackupWPF
         {
             get
             {
-                return EntriesToDisplay.Select(entry => entry.FileSizeBytes).Sum().BytesToString();
+                long size = EntriesToDisplay.Select(entry => entry.FileSizeBytes).Sum();
+                return lib.ByteSize.BytesToString(size);
             }
         }
 
@@ -46,7 +47,8 @@ namespace nacBackupWPF
         {
             get
             {
-                return BackupEntries.Select(entry => entry.FileSizeBytes).Sum().BytesToString();
+                long size = BackupEntries.Select(entry => entry.FileSizeBytes).Sum();
+                return lib.ByteSize.BytesToString(size);
             }
         }
 

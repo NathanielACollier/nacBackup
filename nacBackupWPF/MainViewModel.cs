@@ -54,7 +54,7 @@ namespace nacBackupWPF
 
         public string CompressedBytesCounterStr
         {
-            get { return CompressedBytesCounter.BytesToString(); }
+            get { return lib.ByteSize.BytesToString(CompressedBytesCounter); }
         }
 
         public long UnCompressedBytesCounter
@@ -68,7 +68,7 @@ namespace nacBackupWPF
 
         public string UnCompressedBytesCounterStr
         {
-            get { return UnCompressedBytesCounter.BytesToString(); }
+            get { return lib.ByteSize.BytesToString(UnCompressedBytesCounter); }
         }
 
 

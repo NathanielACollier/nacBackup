@@ -127,7 +127,7 @@ namespace nacBackupWPF
                             {
                                 Path = entry.FileInformation.FullName,
                                 Notes = notes,
-                                FileSize = entry.FileInformation.Length.BytesToString(),
+                                FileSize = lib.ByteSize.BytesToString(entry.FileInformation.Length),
                                 FileSizeBytes = entry.FileInformation.Length,
                                 BackupName = entry.BackupName
                             });
