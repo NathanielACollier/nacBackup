@@ -17,7 +17,6 @@ using Ionic.Zip;
 using System.Threading;
 using System.Windows.Threading;
 
-using Ecark.Extensions;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 

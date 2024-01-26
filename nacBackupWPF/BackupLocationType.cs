@@ -3,11 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-using WPFViewModelBase;
-
 namespace nacBackupWPF
 {
-    public class BackupLocationType : ViewModelBase
+    public class BackupLocationType : nac.ViewModelBase.ViewModelBase
     {
 
 

@@ -3,14 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-using WPFViewModelBase;
 using System.Collections.ObjectModel;
-
-using Ecark.Extensions;
 
 namespace nacBackupWPF
 {
-    public class BackupDirectoryViewModel : ViewModelBase
+    public class BackupDirectoryViewModel : nac.ViewModelBase.ViewModelBase
     {
 
         public ObservableCollection<BackupDirectoryEntry> BackupEntries

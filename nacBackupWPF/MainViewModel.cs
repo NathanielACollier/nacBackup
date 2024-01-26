@@ -3,18 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-using WPFViewModelBase;
 using System.Collections.ObjectModel;
 using System.Windows.Threading;
 using System.Diagnostics;
 
 using System.Windows.Media;
 
-using Ecark.Extensions;
-
 namespace nacBackupWPF
 {
-    public class MainViewModel : ViewModelBase
+    public class MainViewModel : nac.ViewModelBase.ViewModelBase
     {
 
         private DispatcherTimer timer;

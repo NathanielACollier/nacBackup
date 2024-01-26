@@ -10,13 +10,9 @@ using System.Collections.ObjectModel;
 using System.Xml.Linq;
 using System.Threading;
 
-using Ecark.Extensions;
-
-using WPFViewModelBase;
-
 namespace nacBackupWPF
 {
-    public class BackupType : ViewModelBase
+    public class BackupType : nac.ViewModelBase.ViewModelBase
     {
 
 

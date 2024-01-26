@@ -3,11 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-using WPFViewModelBase;
-
 namespace nacBackupWPF
 {
-    public class BackupDirectoryEntry : ViewModelBase
+    public class BackupDirectoryEntry : nac.ViewModelBase.ViewModelBase
     {
 
         public string Path
