@@ -174,7 +174,7 @@ namespace nacBackupWPF
 
         void timer_Tick(object sender, EventArgs e)
         {
-            BackupTimeElapsedStr = stopWatch.Elapsed.GetTimeSpanString();
+            BackupTimeElapsedStr = lib.TimeSpanUtility.GetTimeSpanText(stopWatch.Elapsed);
         }
 
         /**
