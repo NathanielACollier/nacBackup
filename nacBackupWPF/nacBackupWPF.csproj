@@ -4,6 +4,7 @@
         <TargetFramework>net6.0-windows</TargetFramework>
         <UseWPF>true</UseWPF>
         <ApplicationIcon>backup.ico</ApplicationIcon>
+        <Version>1.0.1</Version>
     </PropertyGroup>
     <ItemGroup>
       <PackageReference Include="DotNetZip" Version="1.16.0" />
