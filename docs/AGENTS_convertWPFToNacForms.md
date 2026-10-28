@@ -510,10 +510,11 @@ In WPF the progress callback updated a `RichTextBox.Document` and a
 |------|--------|-------|
 | `App.xaml` | keep | WPF `Application` entry point; `Startup="App_OnStartup"` decides which UI to launch. |
 | `App.xaml.cs` | keep / minor | `runAvalonia()` is active, `runWPF()` is commented out. No code change needed to start the Avalonia window. |
-| `Window1_Avalonia.cs` | **in progress** | Starts the conversion: creates the `Form`, sets a `MainViewModel` `DataContext`, builds one row, and calls `Display(...)`. **Finish `buildForm` to cover every section of `Window1.xaml`, and replace `MessageBox`/`DispatcherTimer`/`Brush` usages (section 5.5, 8).** |
-| `Window1.xaml` (`Window1.xaml.cs`) | keep until Avalonia window is complete | The WPF main window. Delete when `Window1_Avalonia` is the live UI. |
-| `BackupDirectoryBrowser.xaml(.cs)` | to convert | Open as a child form (section 6). |
-| `MainViewModel.cs` | to convert | Remove `System.Windows.Media.Brush` and `System.Windows.Threading.DispatcherTimer`. |
+| `Window1_Avalonia.cs` | **done** | Builds every region of `Window1.xaml` via the fluent builder and wires each action to the shared repos (`BackupSetRepo`, `BackupEngine`, `ElapseTimer`, `NotesRepo`). Confirmations use a `ShowConfirm` child form; the log is a multi-line `TextBoxFor("Log")`. |
+| `BackupDirectoryBrowser_Avalonia.cs` | **done** | New: builds the browser as a `DisplayChildForm` and shares `BackupBrowserRepo` with the WPF browser. |
+| `Window1.xaml` (`Window1.xaml.cs`) | keep | The WPF main window. Now drives the shared repos too. Delete when `Window1_Avalonia` is the live UI. |
+| `BackupDirectoryBrowser.xaml(.cs)` | **deduped** | `PopulateDirectoryEntries`/`OpenBackupEntry` now call `BackupBrowserRepo` (no more duplicated scan); the window keeps only the busy indicator. |
+| `MainViewModel.cs` | **done** | WPF-free: `Brush`/`DispatcherTimer` removed, timer moved to `ElapseTimer`. |
 | `BackupType.cs`, `BackupLocationType.cs`, `BackupDirectoryEntry.cs`, `BackupDirectoryViewModel.cs` | keep | Already WPF-free. |
 | `nacBackupWPF.csproj` | to trim | Remove the WPF-only package refs after the XAML windows are gone (section 7). |
 
@@ -521,12 +522,12 @@ In WPF the progress callback updated a `RichTextBox.Document` and a
 
 - [x] `App.xaml.cs` launches `Window1_Avalonia.Run()` (Avalonia) instead of `runWPF()`.
 - [x] `Window1_Avalonia.cs` creates a `nac.Forms.Form`, sets a `MainViewModel` `DataContext`, and calls `Display(...)`.
-- [ ] Finish `buildForm` to cover every region of `Window1.xaml` (section 5): menu, backup-set dropdown, backup-locations `Table`, progress meter, notes, log, and the Backup/Stop buttons, wiring each to the existing `*_Click` logic moved into `ButtonClick` callbacks.
-- [ ] Make `MainViewModel` WPF-free (remove `Brush` / `DispatcherTimer`, section 4.1).
-- [ ] Convert `BackupDirectoryBrowser` to a child form (section 6).
-- [ ] Replace WPF `MessageBox` confirmations with a child-form dialog (section 5.5).
-- [ ] Trim the WPF-only package references from `nacBackupWPF.csproj` (section 7).
-- [ ] Build the solution and fix any `nac.Forms` property-name typos (these are runtime, not compile, errors — see 4.2).
+- [x] Finish `buildForm` to cover every region of `Window1.xaml` (section 5): menu, backup-set dropdown, backup-locations `Table`, progress meter, notes, log, and the Backup/Stop buttons, wiring each to the existing `*_Click` logic moved into `Button`/`MenuItem` callbacks that call the shared repos.
+- [x] Make `MainViewModel` WPF-free (remove `Brush` / `DispatcherTimer`, section 4.1) — the timer work moved into the `ElapseTimer` repo and the `Brush` into nac.Forms `Style`; no `System.Windows` references remain in `models/`.
+- [x] Convert `BackupDirectoryBrowser` to a child form (section 6): `BackupDirectoryBrowser_Avalonia` builds the UI via the fluent builder and shares the `BackupBrowserRepo` with the WPF browser (`BackupDirectoryBrowser.xaml.cs` now calls the repo instead of duplicating the scan).
+- [x] Replace WPF `MessageBox` confirmations with a child-form dialog (section 5.5): `ShowConfirm` builds an OK/Cancel child form; the closing prompt and the Load/New/Remove confirmations all route through it.
+- [ ] Trim the WPF-only package references from `nacBackupWPF.csproj` (section 7). **Deferred:** `nac.wpf.Controls`, `nac.wpf.controls.BusyControl`, and `nac.wpf.Extensions` are still referenced by the live WPF windows (`Window1.xaml` BusyIndicator / `BackupDirectoryBrowser.xaml` picker, `Window1.xaml.cs` `Win32Extensions`), so removing them would break the still-shipping WPF build. Trim only once `App.xaml.cs` stops offering `runWPF()`.
+- [x] Build the solution: `nacBackupWPF` builds with 0 errors (only pre-existing `NU1903` DotNetZip / `CS8981` `settings`-name warnings remain).
 - [ ] Run end-to-end: load a backup set, run a backup, and confirm the UI updates.
 
 ---

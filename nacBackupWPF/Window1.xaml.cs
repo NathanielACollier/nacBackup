@@ -5,68 +5,39 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using System.Windows.Documents;
 using System.Diagnostics;
-using System.Collections.ObjectModel;
-using System.Collections.Specialized;
-using System.Threading;
 using System.ComponentModel;
-using System.Windows.Threading;
 using System.IO;
-using Ionic.BZip2;
-using Ionic.Zip;
-using System.Windows.Markup;
+using System.Threading.Tasks;
+using nacBackupWPF.models;
+using nacBackupWPF.repos;
 using nac.wpf.Extensions;
 
 namespace nacBackupWPF
 {
 
-
-
     /// <summary>
     /// Interaction logic for Window1.xaml
+    ///
+    /// This is the WPF UI.  All of the backup / loading / saving / notes work has
+    /// been moved into repositories under the nacBackupWPF.repos namespace so that
+    /// the Avalonia UI (Window1_Avalonia.cs) can call exactly the same code.  What
+    /// remains here is WPF-specific: the window, the message boxes and file
+    /// dialogs, and the WPF control bindings.
     /// </summary>
     public partial class Window1 : Window
     {
-        #region Stop DP
+        private MainViewModel model;
+        private WpfUiContext ui;
+        private AppPaths app;
 
-        public static readonly DependencyProperty StopProperty = DependencyProperty.Register("Stop", typeof(bool), typeof(Window1), new PropertyMetadata(false));
-
-        public bool Stop
-        {
-            get { return this.GetValueThreadSafe<bool>(StopProperty); }
-            set { this.SetValueThreadSafe(StopProperty, value); }
-        }
-
-        #endregion
-
-
-
-        private int numberOfBusy = 0;
-
-        private void ShowBusy()
-        {
-            if (numberOfBusy == 0)
-            {
-                BusyIndicator.ShowBusy();
-            }
-
-            ++numberOfBusy;
-
-        }
-
-        private void HideBusy()
-        {
-            if (BusyIndicator.Visibility == System.Windows.Visibility.Visible && numberOfBusy > 0 && --numberOfBusy == 0)
-            {
-                BusyIndicator.HideBusy();
-            }
-        }
+        private NotesRepo notesRepo;
+        private BackupSetRepo setRepo;
+        private BackupEngine engine;
+        private ElapseTimer elapseTimer;
 
         public Brush DefaultButtonBackGround
         {
@@ -74,77 +45,51 @@ namespace nacBackupWPF
         }
 
 
-        public string NotesFilePath
-        {
-            get { return string.Format(@"{0}\notes.txt", Environment.CurrentDirectory); }
-        }
-
-        public string LogFilePath
-        {
-            get { return string.Format(@"{0}\log.rtf", Environment.CurrentDirectory); }
-        }
-
-        public string ApplicationStartPath
-        {
-            get { return System.IO.Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName); }
-        }
-
-
         public Window1()
         {
             InitializeComponent();
 
-            PopulateNotesTextBoxFromNotesFile();
+            // The XAML creates the model as the window's DataContext.
+            model = (MainViewModel)this.DataContext;
 
-            
+            // Wire up the framework-agnostic repositories that the Avalonia UI
+            // uses the exact same way.
+            app = new AppPaths();
+            ui = new WpfUiContext(Dispatcher);
+            notesRepo = new NotesRepo(model, app, ui);
+            setRepo = new BackupSetRepo(model, ui);
+            engine = new BackupEngine(model, ui, app);
+            elapseTimer = new ElapseTimer(model, ui);
 
-            //*** no longer automaticly loading a backup set when the application launches
+            // Load any saved notes and start the elapsed-time ticker.
+            notesRepo.PopulateNotesFromNotesFile();
+            elapseTimer.Start();
 
+            //*** no longer automatically loading a backup set when the application launches
 
-            // use of FlowDocument to write to rich textbox
-            //http://stackoverflow.com/questions/957441/richtextbox-wpf-does-not-have-string-property-text
-            //  I also added some extension methods in, and a NewParagraph method since there appear to be no extension constructors in c#
-            LogTextBox.Document.AddParagraphs( new Paragraph(
-                new Run
-                {
-                    FontFamily = new FontFamily("Arial"),
-                    Foreground = new SolidColorBrush(Colors.Green),
-                    Text = "Application Started.  Now logging.  Write log information here."
-                }));
-            
+            // Seed the log with an opening message.
+            model.Log = "Application Started.  Now logging.  Write log information here.";
+
+            // The log lives in the shared model.Log string (the backup engine
+            // appends to it).  A WPF RichTextBox has no Text binding, so mirror
+            // the log text into the document as the model changes.
+            model.PropertyChanged += OnModelLogChanged;
         }
 
-
-        /**
-         * <summary>
-         *  Populates the notes text from file
-         *  If the file is empty it gets deleted
-         * </summary>
-         */
-        private void PopulateNotesTextBoxFromNotesFile()
+        private void OnModelLogChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (File.Exists(NotesFilePath))
+            if (e.PropertyName == nameof(MainViewModel.Log))
             {
-                string notes = File.ReadAllText(NotesFilePath);
+                var textRange = new TextRange(LogTextBox.Document.ContentStart, LogTextBox.Document.ContentEnd);
+                textRange.Text = model.Log;
 
-                if (string.IsNullOrEmpty(notes))
-                {
-                    File.Delete(NotesFilePath);
-                }
-                else
-                {
-                    NotesTextBox.Text = notes;
-                }
+                LogTextBox.ScrollToEnd();
             }
         }
 
 
-
-
         private void NewBackupButton_Click(object sender, RoutedEventArgs e)
         {
-            MainViewModel model = (MainViewModel)this.DataContext;
-
             model.BackupTypes.Add(new BackupType());
 
             model.SelectedBackup = model.BackupTypes.Last(); // should select the one we just added
@@ -152,395 +97,46 @@ namespace nacBackupWPF
 
         /**
          * <summary>
-         *  This removes the backup that is selected by the drop down from the backup list then re displays the form
+         *  This removes the backup that is selected by the drop down from the
+         *  backup list then re displays the form
          * </summary>
          */
         private void RemoveBackupButton_Click(object sender, RoutedEventArgs e)
         {
-            MainViewModel model = (MainViewModel)this.DataContext;
-
             if (model.SelectedBackup != null)
             {
                 model.BackupTypes.Remove(model.SelectedBackup);
 
                 model.SelectedBackup = null;
             }
-
-        }
-
-
-
-
-
-
-
-        private void BackupButton_Click(object sender, RoutedEventArgs e)
-        {
-            MainViewModel model = (MainViewModel)this.DataContext;
-
-            this.Stop = false;
-
-            if (model.SelectedBackup != null)
-            {
-
-
-                Clear();
-
-
-                
-
-                // Check a few things before gathering more information to perform the backup
-                if (model.SelectedBackup.Name != null && model.SelectedBackup.DestinationPath != null && Directory.Exists(model.SelectedBackup.DestinationPath) && model.SelectedBackup.BackupLocations.Count >= 1)
-                {
-
-
-                    model.StartBackupTimer();
-
-                    using (ZipFile zip = new ZipFile())
-                    {
-                        zip.CompressionLevel = Ionic.Zlib.CompressionLevel.BestCompression;
-
-                        zip.CompressionMethod = CompressionMethod.BZip2;
-
-
-                        string zipFileName = $@"{model.SelectedBackup.DestinationPath}\{model.SelectedBackup.Name}_{model.SelectedBackup.TimeStampValue}.zip";
-
-                        LogTextBox.Document.AddParagraphs(new Paragraph(new Run
-                        {
-                            Foreground = Brushes.Purple,
-                            FontSize = 12.0f,
-                            Text = string.Format("\tBackup Filename: {0}", zipFileName)
-                        }));
-
-
-                        zip.SaveProgress += new EventHandler<SaveProgressEventArgs>(zip_SaveProgress);
-
-                        // collect all of the non blank backupLocations
-                        var validBackupLocations = (from backupLocation in model.SelectedBackup.BackupLocations
-                                                    where !string.IsNullOrEmpty(backupLocation.BackupLocationName) &&
-                                                        !string.IsNullOrEmpty(backupLocation.BackupLocationPath) &&
-                                                        Directory.Exists(backupLocation.BackupLocationPath)
-                                                    select backupLocation).ToList();
-                        // loop through the valid backups and add them to the zip file  We have allready checked to make sure the directories exist
-                        foreach (var backupLocation in validBackupLocations)
-                        {
-                            zip.AddDirectory(backupLocation.BackupLocationPath, backupLocation.BackupLocationName);
-                        }
-
-                        // start a new thread to save the zip file
-                        Thread saveZipFileThread = new Thread((ThreadStart)delegate()
-                        {
-                            try
-                            {
-                                zip.Save(zipFileName);
-                            }
-                            catch (Exception ex)
-                            {
-                                this.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(delegate()
-                                    {
-                                        LogTextBox.Document.AddParagraphs(new Paragraph(new Run
-                                        {
-                                            Foreground = Brushes.Red,
-                                            FontSize = 12.0f,
-                                            Text = string.Format("Error backing up {0}.  Exception message: {1}", model.SelectedBackup.Name, ex.Message)
-                                        }));
-
-                                        // stop the backup timer since something went wrong with the backup
-                                        model.StopBackupTimer();
-
-                                    }));
-                            }
-
-
-
-                            // put the log in an rtf file and add it to the zip   "log.rtf"
-                            SaveLogToZip(zipFileName);
-                            // put the notes in a text file and add it to the zip "notes.txt"
-                            SaveNotesToZip(zipFileName);
-
-                        });
-
-                        saveZipFileThread.Start();
-
-                    }
-                }
-                else // something is wrong with the backup type
-                {
-                    var errorMessage = string.Empty;
-
-                    if (!Directory.Exists(model.SelectedBackup.DestinationPath))
-                    {
-                        errorMessage += $"Directory {model.SelectedBackup.DestinationPath} does not exist";
-                    }
-
-                    if (model.SelectedBackup.BackupLocations.Count < 1)
-                    {
-                        errorMessage += "There are no backup locations to backup";
-                    }
-
-                    if (model.SelectedBackup.Name == null || model.SelectedBackup.DestinationPath == null)
-                    {
-                        errorMessage += $"Something is wrong with the backup name({model.SelectedBackup.Name}) or the destination path({model.SelectedBackup.DestinationPath})";
-                    }
-
-                    LogTextBox.Document.AddParagraphs(new Paragraph(new Run
-                    {
-                        Text = errorMessage,
-                        Foreground = Brushes.Red
-                    }));
-
-
-                }
-
-            }
-            else // nothing was selected
-            {
-                LogTextBox.Document.AddParagraphs(new Paragraph(new Run
-                {
-                    Text = "You did not select a backup type from the list",
-                    Foreground = Brushes.Red
-                }));
-            }
-
-        }
-
-        /**
-         * <summary>
-         *  This event occurs everytime there is some kind of progress with the zipfile saving
-         * </summary>
-         */
-        void zip_SaveProgress(object sender, SaveProgressEventArgs e)
-        {
-            MainViewModel model = null;
-
-            if (this.Stop == true)
-            {
-                e.Cancel = true;
-                return;
-            }
-
-            this.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(delegate
-            {
-                model = (MainViewModel)this.DataContext;
-            }));
-
-            if (e.EventType == ZipProgressEventType.Saving_AfterWriteEntry)
-            {
-                
-                // Set the backup progress bar value
-                this.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(delegate()
-                {
-                    model.BackupProgressPercent = (int)(((double)e.EntriesSaved / (double)e.EntriesTotal) * 100);
-                }));
-
-                if (e.CurrentEntry.IsDirectory == true)
-                {
-
-                    this.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(delegate()
-                    {
-                        // write out the directory name
-                        // I had to create the paragraph inside the invoke method for some reason, if I didn't it gave an ominous exception 
-
-
-                        LogTextBox.Document.AddParagraphs((new Paragraph()).AddInlines(
-                        new Run
-                        {
-                            FontFamily = new FontFamily("Arial Black"),
-                            FontSize = 12F,
-                            FontWeight = FontWeights.Bold,
-                            Foreground = Brushes.Green,
-                            Text = "Backing up Directory: "
-                        },
-                        new Run
-                        {
-                            FontFamily = new FontFamily("Arial"),
-                            FontSize = 10F,
-                            Foreground = Brushes.Blue,
-                            Text = e.CurrentEntry.FileName
-                        }));
-
-                        // incriment the Directory count
-                        model.DirectoryCount += 1;
-
-                    }));
-
-                }
-                else // it is a file instead of a directory
-                {
-                    // write out the file name
-                    this.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(delegate()
-                    {
-
-                        LogTextBox.Document.AddParagraphs(new Paragraph(
-                            new Run
-                            {
-                                Text = $"\t\t{e.CurrentEntry.FileName}"
-                            }));
-
-                        // incriment the file count
-                        model.FileCount += 1;
-
-                        // incriment sizes for the file
-                        model.CompressedBytesCounter += e.CurrentEntry.CompressedSize;
-                        model.UnCompressedBytesCounter += e.CurrentEntry.UncompressedSize;
-
-                    }));
-
-                }// end of if is file
-
-                
-
-            } // end of if after writing entry to the zip file
-            else if (e.EventType == ZipProgressEventType.Saving_Completed)
-            {
-
-                this.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(delegate()
-                    {
-                        // update the progress percent
-                        model.BackupProgressPercent = 100;
-
-                        // write out a message that the backup succeded
-
-                        LogTextBox.Document.AddParagraphs(new Paragraph(
-                            new Run
-                            {
-                                Foreground = Brushes.Red,
-                                FontWeight = FontWeights.Bold,
-                                FontFamily = new FontFamily( "Arial Black" ),
-                                FontSize = 14F,
-                                Text = "Backup Is Now Complete !!!"
-                            }));
-
-                        // we are done so stop the backup timer
-                        model.StopBackupTimer();
-
-                        // write out the time it took to perform the backup
-                        LogTextBox.Document.AddParagraphs(new Paragraph(
-                            new Run
-                            {
-                                Foreground = Brushes.Purple,
-                                Text = string.Format("Backup completed in {0}", model.BackupTimeElapsedStr)
-                            }));
-
-                        // the compressed size, uncompressed size, and compression ratio should be appended onto the end of the log
-                        LogTextBox.Document.AddParagraphs(new Paragraph(
-                            new Run
-                            {
-                                Foreground = Brushes.Purple,
-                                Text = string.Format("Compressed Size: {0}\tUnCompressed Size: {1}\tCompression Ratio: {2}", model.CompressedBytesCounterStr,
-                                                                                                                             model.UnCompressedBytesCounterStr,
-                                                                                                                             model.CompressionRatioStr )
-                            }));
-                    
-                    }));
-                
-
-            }// end of if saving complete
-
         }
 
 
         /**
          * <summary>
-         *   Assumption is that this is running in the zip thread
+         *  Begin a backup.  The actual work lives in the shared BackupEngine so
+         *  the Avalonia UI calls the same code.
          * </summary>
          */
-        private void SaveLogToZip(string zipFileName)
+        private async void BackupButton_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                LogTextBox.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(delegate()
-                    {
-                        var content = new TextRange(LogTextBox.Document.ContentStart, LogTextBox.Document.ContentEnd);
-
-                        using (var fileOut = new FileStream(LogFilePath, FileMode.Create))
-                        {
-                            content.Save(fileOut, DataFormats.Rtf);
-                        }
-                    }));
-
-                
-                using (ZipFile zip = ZipFile.Read(zipFileName))
-                {
-                    zip.AddFile(LogFilePath, "");
-                    zip.Save();
-                }
-
-                File.Delete(LogFilePath);
-            }
-            catch (Exception ex)
-            {
-                LogTextBox.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(delegate()
-                {
-                    LogTextBox.Document.AddParagraphs(new Paragraph(new Run
-                    {
-                        Foreground = Brushes.Red,
-                        FontSize = 12.0f,
-                        Text = string.Format("Error Saving log to {0}.  Exception message: {1}", zipFileName, ex.Message)
-                    }));
-                }));
-
-            }
+            await engine.StartBackup();
         }
-
-        /**
-         * <summary>
-         *  Assumption is that this is running in the zip thread
-         * </summary>
-         */
-        private void SaveNotesToZip(string zipFileName)
-        {
-            try
-            {
-                NotesTextBox.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(delegate()
-                    {
-                        File.WriteAllText(NotesFilePath, NotesTextBox.Text);
-                    }));
-
-                using (ZipFile zip = ZipFile.Read(zipFileName))
-                {
-                    zip.AddFile(NotesFilePath, "");
-                    zip.Save();
-                }
-
-                ClearNotes();
-            }
-            catch (Exception ex)
-            {
-                NotesTextBox.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(delegate()
-                {
-                    LogTextBox.Document.AddParagraphs(new Paragraph(new Run
-                    {
-                        Foreground = Brushes.Red,
-                        FontSize = 12.0f,
-                        Text = string.Format("Error Saving notes to {0}.  Exception message: {1}", zipFileName, ex.Message)
-                    }));
-                }));
-
-            }
-        }
-
-
 
 
         private void AddBackupLocationButton_Click(object sender, RoutedEventArgs e)
         {
-            MainViewModel model = (MainViewModel)this.DataContext;
-
             if (model.SelectedBackup != null)
             {
-                model.SelectedBackup.BackupLocations.Add(new BackupLocationType());
+                model.SelectedBackup.BackupLocations.Add(new models.BackupLocationType());
             }
         }
 
         private void RemoveBackupLocationButton_Click(object sender, RoutedEventArgs e)
         {
-            MainViewModel model = (MainViewModel)this.DataContext;
-
             if (model.SelectedBackup != null && model.SelectedBackupLocation != null)
             {
                 model.SelectedBackup.BackupLocations.Remove(model.SelectedBackupLocation);
-
 
                 model.SelectedBackupLocation = null;
             }
@@ -548,18 +144,15 @@ namespace nacBackupWPF
             {
                 System.Windows.MessageBox.Show("Error removing backup location.  Either a backup or a location is not selected.", "Backup Location Removal Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-
         }
 
 
         private void BackupBrowserMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            MainViewModel model = (MainViewModel)this.DataContext;
-
             BackupDirectoryBrowser browserWindows = new BackupDirectoryBrowser();
 
             // if the selected backup is not null then show it in the backup directory browser
-            if( model.SelectedBackup != null )
+            if (model.SelectedBackup != null)
             {
                 browserWindows.BackupDirectoryPicker.DirectoryPath = model.SelectedBackup.DestinationPath;
             }
@@ -569,58 +162,26 @@ namespace nacBackupWPF
 
         private void SaveNotesButton_Click(object sender, RoutedEventArgs e)
         {
-            SaveNotes();
-        }
+            notesRepo.SaveNotes();
 
-        /**
-         * <summary>
-         *  This is called when the user hits the save notes button and it is also called if the user closes the form with notes being entered just incase they wheren't saved
-         * </summary>
-         */
-        private void SaveNotes()
-        {
-            File.WriteAllText(NotesFilePath, NotesTextBox.Text);
+            // visual cue that the notes have been saved
             SaveNotesButton.Background = Brushes.Green;
         }
 
 
         /**
          * <summary>
-         *   This will clear out the notes textbox and delete the notes.txt file if it exist
-         *   
-         *   It will also set the save notes button back to the default button background
-         *   This function should be safely callable by a thread without causing an exception
+         *   This is called when the user hits the clear notes button.
          * </summary>
          */
-        private void ClearNotes()
-        {
-            NotesTextBox.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(() =>
-                {
-                    NotesTextBox.Text = string.Empty;
-                }));
-            
-
-            if (File.Exists(NotesFilePath))
-            {
-                File.Delete(NotesFilePath);
-            }
-
-
-            // since we cleared it we want the save button's background to go back to grey
-            SaveNotesButton.Dispatcher.Invoke(DispatcherPriority.Normal, new Action(() =>
-                {
-                    SaveNotesButton.Background = DefaultButtonBackGround;
-                }));
-
-            
-        }
-
-        
-
         private void ClearNotesButton_Click(object sender, RoutedEventArgs e)
         {
-            ClearNotes();
+            notesRepo.ClearNotes();
+
+            // since we cleared it we want the save button's background to go back to grey
+            SaveNotesButton.Background = DefaultButtonBackGround;
         }
+
 
         /**
          * <summary>
@@ -630,16 +191,8 @@ namespace nacBackupWPF
         private void NotesTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             SaveNotesButton.Background = Brushes.Red;
-
         }
 
-        private void LogTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            // when the log changes scroll to the end
-            LogTextBox.ScrollToEnd();
-
-            
-        }
 
         private void CheckSpellingMenuItem_Click(object sender, RoutedEventArgs e)
         {
@@ -674,11 +227,37 @@ namespace nacBackupWPF
         }// end of check spelling menu item
 
 
-
-        private void LoadBackupSet()
+        /**
+         * <summary>
+         *  Load a backup set.  The confirmation prompt and the open-file dialog
+         *  are WPF-specific and stay here; the actual load (parse the config file
+         *  on a background thread and push the results onto the model) lives in
+         *  BackupSetRepo.LoadFromAsync, which the Avalonia UI calls the same way.
+         * </summary>
+         */
+        private async void LoadBackupSetMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            MainViewModel model = (MainViewModel)this.DataContext;
+            // if there are entries in the backups list ask the user if they want
+            // to save them before loading a backup set
+            if (model.BackupTypes.Count > 0)
+            {
+                // prompt to make sure changes are saved
+                var promptResult = System.Windows.MessageBox.Show("Please make sure that any changes to the current backup set have been saved.  To continue loading a new backup set click ok, this will clear out the currently loaded backup set.  Else click cancel.", "Have you saved any changes?", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+                if (promptResult == MessageBoxResult.OK)
+                {
+                    await RunLoadBackupSet();
+                    return;
+                }
+            }
+            else
+            {
+                await RunLoadBackupSet(); // load a backup set without prompting since no backup types exist
+            }
+        }// end of load backup set menu item
 
+
+        private async Task RunLoadBackupSet()
+        {
             try
             {
                 // get the file path to load
@@ -688,67 +267,22 @@ namespace nacBackupWPF
                 if (fileDialogResult == System.Windows.Forms.DialogResult.OK)
                 {
                     model.BackupSetPath = fileDialog.FileName;
-                    ShowBusy(); // now that the user had made all the decisions show a busy indicator
 
-                    Thread loadBackupTypesThread = new Thread((ThreadStart)delegate()
-                    {
-                        // load the backups from the file path
-                        var backupTypeList = BackupType.LoadBackupTypeListFromConfigFile(model.BackupSetPath);
-
-                        this.Dispatcher.Invoke(new Action(delegate()
-                        {
-                            model.LoadBackupTypes(backupTypeList);
-                            HideBusy();
-                        }));
-                    });
-
-                    loadBackupTypesThread.Start();
+                    // parse the config file off the UI thread and push the
+                    // results onto the model (the repo shows the busy indicator)
+                    await setRepo.LoadFromAsync(model.BackupSetPath);
                 }
             }
             catch (Exception ex)
             {
-                LogTextBox.Document.AddParagraphs(new Paragraph(new Run
-                {
-                    Foreground = Brushes.Red,
-                    Text = $"Problem occured while attemping to load backups from config file: {model.BackupSetPath}, Exception: {ex.Message}"
-                }));
-
-                HideBusy();
+                model.Log = AppendLogLine(model.Log,
+                    $"Problem occured while attemping to load backups from config file: {model.BackupSetPath}, Exception: {ex.Message}");
             }
         }
 
 
-
-        private void LoadBackupSetMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            MainViewModel model = (MainViewModel)this.DataContext;
-
-
-            // if there are entries in the backups list ask the user if they want to save them before loading a backup set
-            if (model.BackupTypes.Count > 0)
-            {
-                // prompt to make sure changes are saved
-                var promptResult = System.Windows.MessageBox.Show("Please make sure that any changes to the current backup set have been saved.  To continue loading a new backup set click ok, this will clear out the currently loaded backup set.  Else click cancel.", "Have you saved any changes?", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
-                if (promptResult == MessageBoxResult.OK)
-                {
-                    LoadBackupSet();
-                    return;
-                }
-            }
-            else
-            {
-                LoadBackupSet(); // load a backup set without prompting since no backup types exist, meaning there is nothing that needs to be saved
-            }
-
-
- 
-        }// end of load backup set menu item
-
-
         private void NewBackupSetMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            MainViewModel model = (MainViewModel)this.DataContext;
-
             // if there is stuff that might need to be saved prompt the user
             if (model.BackupTypes.Count > 0)
             {
@@ -763,38 +297,13 @@ namespace nacBackupWPF
 
         /**
          * <summary>
-         *   This does the actual saving of the backup set and is called by the save backup set menu item click
+         *  Save the backup set.  The overwrite confirmation and the save-file
+         *  dialog are WPF-specific and stay here; the actual write (and the log
+         *  message) lives in BackupSetRepo.SaveBackupTypes.
          * </summary>
          */
-        private void SaveBackupSet(string path)
-        {
-            MainViewModel model = (MainViewModel)this.DataContext;
-            try
-            {
-                model.SaveBackupTypes(path);
-
-                LogTextBox.Document.AddParagraphs(new Paragraph(new Run
-                {
-                    Foreground = Brushes.Blue,
-                    Text = $"All backups have been saved to the config file: {path}."
-                }));
-
-            }
-            catch (Exception ex)
-            {
-                LogTextBox.Document.AddParagraphs(new Paragraph(new Run
-                {
-                    Foreground = Brushes.Red,
-                    Text = $"Unable to save backups to config file: {path}.  Exception: {ex}"
-                }));
-            }
-        }
-
         private void SaveBackupSetMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            MainViewModel model = (MainViewModel)this.DataContext;
-
-
             // if backup set path is not null ask the user if they want to overwrite the current backup set
             if (!string.IsNullOrEmpty(model.BackupSetPath))
             {
@@ -802,36 +311,32 @@ namespace nacBackupWPF
                 if (result == MessageBoxResult.OK)
                 {
                     // use the backup set path to save the backups to
-                    SaveBackupSet(model.BackupSetPath);
+                    setRepo.SaveBackupTypes(model.BackupSetPath);
                     return;
                 }
             }
 
             // prompt the user to pick a place to save the backup set
-            //http://www.java2s.com/Tutorial/VB/0260__GUI/SetOpenFileDialogFilterandgetselectedfilename.htm
             var fileDialog = new System.Windows.Forms.SaveFileDialog();
             fileDialog.Filter = "XML (*.xml) |*.xml";
             var fileDialogResult = fileDialog.ShowDialog(owner: Win32Extensions.GetIWin32Window(this));
             if (fileDialogResult == System.Windows.Forms.DialogResult.OK)
             {
                 model.BackupSetPath = fileDialog.FileName;
-                SaveBackupSet(model.BackupSetPath);
+                setRepo.SaveBackupTypes(model.BackupSetPath);
             }
-
         }
 
 
         /**
          * <summary>
-         *  Prompt the user to determine if they really wanted to exit the program
+         *  Prompt the user to determine if they really wanted to exit the program,
+         *  then save the notes if any are entered.
          * </summary>
          */
         private void Window_Closing(object sender, CancelEventArgs e)
         {
-            MainViewModel model = (MainViewModel)this.DataContext;
-
             // prompt user to determine if the current backup set is saved
-            // it will only prompt if any backups exist in the model, if they dont' then there is nothing to save
             if (model.BackupTypes.Count > 0)
             {
                 MessageBoxResult result;
@@ -852,44 +357,33 @@ namespace nacBackupWPF
                 }
             }
 
-
             if (!string.IsNullOrEmpty(NotesTextBox.Text))
             {
-                // save the notes
-                SaveNotes();
+                // save the notes just in case they weren't saved
+                notesRepo.SaveNotes();
             }
-
         }
 
         private void StopBackupButton_Click(object sender, RoutedEventArgs e)
         {
-           
-            this.Stop = true;
-            Clear();
+            engine.Stop();
+            _ = engine.Clear();
         }
 
 
-        private void Clear()
+
+
+        /**
+         * <summary>
+         *  Shared helper used by both the window and the engine to append a line
+         *  to the plain-text log in model.Log.
+         * </summary>
+         */
+        private string AppendLogLine(string current, string line)
         {
-            MainViewModel model = (MainViewModel)this.DataContext;
-
-
-            model.StopBackupTimer();
-            // reset the counters in the model since we are doing a new backup
-            model.ResetCounters();
-
-            // Before starting the backup thread clear everything out
-            LogTextBox.Document.Blocks.Clear();
-
-            LogTextBox.Document.AddParagraphs(new Paragraph(new Run
-            {
-                Foreground = Brushes.Purple,
-                Text = "Backup Cleared"
-            }));
+            return string.IsNullOrEmpty(current) ? line : current + Environment.NewLine + line;
         }
 
     }// end of class
 
-
-
-}// end of namespace
+}

@@ -3,7 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     xmlns:NacWPFControls="clr-namespace:nac.wpf.Controls;assembly=nac.wpf.Controls"
-    xmlns:local="clr-namespace:nacBackupWPF"
+     xmlns:local="clr-namespace:nacBackupWPF.models"
     xmlns:BusyIndicator="clr-namespace:nac.wpf.controls.BusyControl;assembly=nac.wpf.controls.BusyControl"
         Closing="Window_Closing"
     Title="Nathaniel Collier Backup Utility" Height="775" Width="1010">
@@ -131,7 +131,7 @@
                 <TextBlock Margin="40,0,0,0">Directories</TextBlock>
                 <TextBlock Text="{Binding Path=DirectoryCount}" Background="Black" Foreground="White" Margin="10,0,0,0" Width="50"></TextBlock>
                 <TextBlock Margin="20,0,0,0">Backup Progress</TextBlock>
-                <ProgressBar Value="{Binding Path=BackupProgressPercent}"  Margin="10,0,0,0" Width="600" Foreground="{Binding Path=BackupProgressBrush}"></ProgressBar>
+                <ProgressBar Value="{Binding Path=BackupProgressPercent}"  Margin="10,0,0,0" Width="600" Foreground="Green"></ProgressBar>
             </StackPanel>     
             
             
@@ -155,7 +155,7 @@
                     </Expander>
 
                     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Height="100" >
-                        <TextBox  x:Name="NotesTextBox" SpellCheck.IsEnabled="True" AcceptsReturn="True" AcceptsTab="True" TextChanged="NotesTextBox_TextChanged"   />
+                        <TextBox  x:Name="NotesTextBox" Text="{Binding Notes, Mode=TwoWay}" SpellCheck.IsEnabled="True" AcceptsReturn="True" AcceptsTab="True" TextChanged="NotesTextBox_TextChanged"   />
                     </ScrollViewer>
                 </StackPanel>
                 
@@ -165,7 +165,7 @@
             <!-- Sixth Row -->
             <!-- Margin Order:  Left, Top, Right, Bottom -->
             <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
-                <RichTextBox x:Name="LogTextBox" Width="990" Height="150" TextChanged="LogTextBox_TextChanged" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                <RichTextBox x:Name="LogTextBox" Width="990" Height="150" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                     <FlowDocument>
                     </FlowDocument>
                 </RichTextBox>
